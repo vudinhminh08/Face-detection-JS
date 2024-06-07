@@ -1,23 +1,73 @@
 const MODEL_URL = "models";
+image_list = [];
+count = 0;
+state = "";
 
 const webcamElement = document.getElementById("webcam");
 const canvasElement = document.getElementById("canvas");
+const context = canvasElement.getContext("2d");
 
 const webcam = new Webcam(webcamElement, "user", canvasElement);
 const imageElement = document.getElementById("captured-image");
 const imagesContainer = document.getElementById("images-container");
 const captureButton = document.getElementById("captureButton");
+const notification = document.querySelector("h1.notification");
+notification.textContent = `${state}`;
 $(document).ready(function () {
   console.log("start");
-  load_model();
+  Promise.all([
+    faceapi.nets.ssdMobilenetv1.loadFromUri("/models"),
+    faceapi.nets.tinyFaceDetector.loadFromUri("/models"),
+    faceapi.nets.faceLandmark68Net.loadFromUri("/models"),
+    faceapi.nets.faceRecognitionNet.loadFromUri("/models"),
+    faceapi.nets.faceExpressionNet.loadFromUri("/models"),
+  ]).then(startWebcam);
+});
+function startWebcam() {
   webcam
     .start()
     .then((result) => {
-      console.log("webcam started");
+      console.log("Webcam started");
     })
     .catch((err) => {
-      console.log(err);
+      console.error(err);
     });
+}
+webcamElement.addEventListener("play", () => {
+  canvas = faceapi.createCanvas(webcamElement);
+  document.body.append(canvas);
+  const displaySize = {
+    width: webcamElement.width,
+    height: webcamElement.height,
+  };
+  faceapi.matchDimensions(canvas, displaySize);
+
+  setInterval(async () => {
+    const detections = await faceapi
+      .detectAllFaces(webcamElement, new faceapi.TinyFaceDetectorOptions())
+      .withFaceLandmarks()
+      .withFaceExpressions();
+    if (detections.length > 0) {
+      let x_head = detections[0].detection._box._x;
+      let y_head = detections[0].detection._box._y;
+      let area_head = detections[0].detection._box.area;
+      if (
+        x_head < displaySize.width / 6 ||
+        y_head < displaySize.height / 6 ||
+        x_head > displaySize.width / 1.5 ||
+        y_head > displaySize.height / 1.5 ||
+        area_head < (displaySize.width * displaySize.height) / 12 ||
+        area_head > (displaySize.width * displaySize.height) / 2
+      ) {
+        console.log("Please insert your head in the correct position");
+      }
+    }
+    // const resizedDetections = faceapi.resizeResults(detections, displaySize);
+    // canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
+    // faceapi.draw.drawDetections(canvas, resizedDetections);
+    // faceapi.draw.drawFaceLandmarks(canvas, resizedDetections);
+    // faceapi.draw.drawFaceExpressions(canvas, resizedDetections);
+  }, 100);
 });
 
 async function load_model() {
@@ -38,9 +88,7 @@ function getMeanPosition(l) {
     .reduce((a, b) => [a[0] + b[0], a[1] + b[1]])
     .map((a) => a / l.length);
 }
-image_list = [];
-count = 0;
-state = "";
+
 function detectHeadpose(res) {
   let state_img = "CAN_NOT_DETECT";
   if (res) {
@@ -89,10 +137,26 @@ async function capture() {
   var picture = webcam.snap();
   const base64Response = await fetch(picture);
   const blob = await base64Response.blob();
+
+  const img1 = new Image();
+  img1.src = URL.createObjectURL(blob);
+
+  img1.onload = function () {
+    let mat = cv.imread(img1);
+    cv.cvtColor(mat, mat, cv.COLOR_RGBA2GRAY);
+    const resolution = { width: mat.cols, height: mat.rows };
+    let mean = new cv.Mat();
+    let meanScalar = cv.mean(mat);
+    const brightness = meanScalar[0];
+    mat.delete();
+    mean.delete();
+    console.log("Resolution:", resolution);
+    console.log("Brightness:", brightness);
+  };
   const img = await faceapi.bufferToImage(blob);
 
   const detections = await faceapi
-    .detectAllFaces(img)
+    .detectAllFaces(img, new faceapi.SsdMobilenetv1Options())
     .withFaceLandmarks()
     .withFaceExpressions()
     .withFaceDescriptors()
@@ -145,6 +209,8 @@ async function capture() {
       console.log(image_list);
       console.log(state);
     });
+
+  document.getElementById("notification").innerHTML = state;
 }
 
 // if (detections) {
