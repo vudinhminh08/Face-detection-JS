@@ -1,7 +1,6 @@
 const MODEL_URL = "models";
 image_list = [];
 count = 0;
-state = "";
 
 const webcamElement = document.getElementById("webcam");
 const canvasElement = document.getElementById("canvas");
@@ -12,7 +11,6 @@ const imageElement = document.getElementById("captured-image");
 const imagesContainer = document.getElementById("images-container");
 const captureButton = document.getElementById("captureButton");
 const notification = document.querySelector("h1.notification");
-notification.textContent = `${state}`;
 $(document).ready(function () {
   console.log("start");
   Promise.all([
@@ -209,8 +207,6 @@ async function capture() {
       console.log(image_list);
       console.log(state);
     });
-
-  document.getElementById("notification").innerHTML = state;
 }
 
 // if (detections) {
